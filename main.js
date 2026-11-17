@@ -87,6 +87,16 @@ const server = http.createServer(async (req, res) => {
           res.end('Картинку не знайдено ні в кеші, ні на http.cat\n');
         }
       }
+    } else if (req.method === 'PUT') {
+      const bodyBuffer = await getRequestBody(req);
+      if (bodyBuffer.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Тіло PUT-запиту порожнє\n');
+        return;
+      }
+      await fs.writeFile(filePath, bodyBuffer);
+      res.writeHead(201, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Картинку успішно збережено в кеш\n');
     } else {
       res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end(`Метод ${req.method} не дозволений\n`);
