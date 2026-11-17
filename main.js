@@ -35,7 +35,6 @@ try {
   process.exit(1);
 }
 
-// Отримання двійкових даних з тіла запиту через проміс
 function getRequestBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -50,15 +49,48 @@ const server = http.createServer(async (req, res) => {
     const parsedUrl = new URL(req.url, `http://${options.host}:${port}`);
     const code = parsedUrl.pathname.slice(1);
 
-    // Перевірка шляху: очікується тризначний HTTP-код
     if (!/^\d{3}$/.test(code)) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Некоректний код стану в URL (очікується тризначне число)\n');
       return;
     }
 
-    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Методи ще не реалізовано\n');
+    const filePath = path.join(cacheDir, `${code}.jpg`);
+
+    if (req.method === 'GET') {
+      try {
+        const cachedImage = await fs.readFile(filePath);
+        res.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'X-Cache': 'HIT'
+        });
+        res.end(cachedImage);
+      } catch (err) {
+        if (err.code !== 'ENOENT') {
+          throw err;
+        }
+        try {
+          const response = await superagent
+            .get(`https://http.cat/${code}`)
+            .responseType('blob');
+
+          const imageBuffer = Buffer.from(response.body);
+          await fs.writeFile(filePath, imageBuffer);
+
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'X-Cache': 'MISS'
+          });
+          res.end(imageBuffer);
+        } catch (fetchErr) {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Картинку не знайдено ні в кеші, ні на http.cat\n');
+        }
+      }
+    } else {
+      res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(`Метод ${req.method} не дозволений\n`);
+    }
   } catch (serverErr) {
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`Внутрішня помилка сервера: ${serverErr.message}\n`);
