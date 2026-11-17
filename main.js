@@ -4,7 +4,6 @@ import path from 'node:path';
 import { program } from 'commander';
 import superagent from 'superagent';
 
-// Звільняємо короткий прапорець -h для опції --host
 program.helpOption('--help', 'Вивести довідку');
 
 program
@@ -29,10 +28,44 @@ if (Number.isNaN(port) || port < 1 || port > 65535) {
 
 const cacheDir = path.resolve(options.cache);
 
-// Створення теки кешу під час запуску, до початку приймання запитів
 try {
   await fs.mkdir(cacheDir, { recursive: true });
 } catch (err) {
   console.error(`Помилка створення теки кешу: ${err.message}`);
   process.exit(1);
 }
+
+// Отримання двійкових даних з тіла запиту через проміс
+function getRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', (err) => reject(err));
+  });
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const parsedUrl = new URL(req.url, `http://${options.host}:${port}`);
+    const code = parsedUrl.pathname.slice(1);
+
+    // Перевірка шляху: очікується тризначний HTTP-код
+    if (!/^\d{3}$/.test(code)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Некоректний код стану в URL (очікується тризначне число)\n');
+      return;
+    }
+
+    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Методи ще не реалізовано\n');
+  } catch (serverErr) {
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(`Внутрішня помилка сервера: ${serverErr.message}\n`);
+  }
+});
+
+server.listen(port, options.host, () => {
+  console.log(`Проксі-сервер запущено на http://${options.host}:${port}`);
+  console.log(`Тека кешу: ${cacheDir}`);
+});
