@@ -97,8 +97,24 @@ const server = http.createServer(async (req, res) => {
       await fs.writeFile(filePath, bodyBuffer);
       res.writeHead(201, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Картинку успішно збережено в кеш\n');
+    } else if (req.method === 'DELETE') {
+      try {
+        await fs.unlink(filePath);
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Картинку успішно видалено з кешу\n');
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Картинку для видалення не знайдено в кеші\n');
+        } else {
+          throw err;
+        }
+      }
     } else {
-      res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.writeHead(405, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Allow': 'GET, PUT, DELETE'
+      });
       res.end(`Метод ${req.method} не дозволений\n`);
     }
   } catch (serverErr) {
